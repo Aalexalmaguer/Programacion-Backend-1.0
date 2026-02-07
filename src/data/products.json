@@ -1,0 +1,14 @@
+[
+	{
+		"id": 1,
+		"title": "Laptop Gamer",
+		"description": "Laptop potente con tarjeta gráfica",
+		"code": "LPT-001",
+		"price": 1500,
+		"stock": 25,
+		"category": "Computadoras",
+		"thumbnails": [
+			"http://imagen.com/laptop.jpg"
+		]
+	}
+]

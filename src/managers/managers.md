@@ -1,0 +1,1 @@
+# Aquí irá tu lógica de archivos (ProductManager y CartManager)
