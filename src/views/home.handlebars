@@ -1,0 +1,10 @@
+{{!-- El Esqueleto de la Pagina, esta vista solo mostrará los productos estáticos que le enviemos  desde el servidor --}}
+<h1>Lista de Productos (Estática)</h1>
+<ul>
+    {{#each products}}
+    <li>
+        <strong>{{this.title}}</strong> - ${{this.price}}
+        <p>{{this.description}}</p>
+    </li>
+    {{/each}}
+</ul>

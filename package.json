@@ -32,6 +32,7 @@
     "escape-html": "^1.0.3",
     "etag": "^1.8.1",
     "express": "^5.2.1",
+    "express-handlebars": "^8.0.6",
     "finalhandler": "^2.1.1",
     "forwarded": "^0.2.0",
     "fresh": "^2.0.0",
@@ -71,12 +72,12 @@
     "side-channel-list": "^1.0.0",
     "side-channel-map": "^1.0.1",
     "side-channel-weakmap": "^1.0.2",
+    "socket.io": "^4.8.3",
     "statuses": "^2.0.2",
     "toidentifier": "^1.0.1",
     "type-is": "^2.0.1",
     "unpipe": "^1.0.0",
     "vary": "^1.1.2",
     "wrappy": "^1.0.2"
-  },
-  "devDependencies": {}
+  }
 }
