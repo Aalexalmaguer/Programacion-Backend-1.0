@@ -1,85 +1,89 @@
-import fs from 'fs';
+// Importamos el molde de productos que creamos para MongoDB
+import { productModel } from '../models/product.model.js';
 
 export default class ProductManager {
-    constructor(path) {
-        this.path = path;
-    }
+    // Ya no necesitamos el constructor del 'path' porque usamos la base de datos directamente
 
-    // 1. Obtener todos los productos
-    getProducts = async () => {
+    // 1. Obtener todos los productos (AHORA CON PAGINACIÓN Y FILTROS)
+    getProducts = async (limit = 10, page = 1, sort, query) => {
         try {
-            if (fs.existsSync(this.path)) {
-                const data = await fs.promises.readFile(this.path, 'utf-8');
-                const products = JSON.parse(data);
-                return products;
-            } else {
-                return []; // Si no existe el archivo, devuelve un array vacío
+            // Preparamos el filtro (si el usuario busca por categoría o disponibilidad)
+            let filter = {};
+            if (query) {
+                if (query === 'true' || query === 'false') {
+                    filter.status = query === 'true'; // Filtro por disponibilidad
+                } else {
+                    filter.category = query; // Filtro por categoría
+                }
             }
+
+            // Preparamos las opciones de paginación y ordenamiento
+            const options = {
+                limit: parseInt(limit),
+                page: parseInt(page),
+                lean: true // lean: true es una configuración MÁGICA para que Handlebars pueda leer los datos de Mongo
+            };
+
+            // Si nos piden ordenar por precio
+            if (sort === 'asc') {
+                options.sort = { price: 1 }; // Ascendente (menor a mayor)
+            } else if (sort === 'desc') {
+                options.sort = { price: -1 }; // Descendente (mayor a menor)
+            }
+
+            // Ejecutamos la búsqueda con la herramienta de paginación
+            const result = await productModel.paginate(filter, options);
+            return result; 
         } catch (error) {
-            console.log(error);
-            return [];
+            console.log("Error en getProducts:", error);
+            return null;
         }
     }
 
     // 2. Agregar un producto
     addProduct = async (product) => {
         try {
-            const products = await this.getProducts();
-
-            // Generar ID automático (incrementable)
-            let id;
-            if (products.length === 0) {
-                id = 1;
-            } else {
-                id = products[products.length - 1].id + 1;
-            }
-
-            const newProduct = {
-                id,
-                ...product
-            };
-
-            products.push(newProduct);
-
-            await fs.promises.writeFile(this.path, JSON.stringify(products, null, '\t'));
+            // MongoDB crea el ID automáticamente, así que solo le pasamos el producto
+            const newProduct = await productModel.create(product);
             return newProduct;
-
         } catch (error) {
-            console.log(error);
+            console.log("Error al agregar producto:", error);
+            return null;
         }
     }
 
     // 3. Buscar producto por ID
     getProductById = async (id) => {
-        const products = await this.getProducts();
-        const product = products.find(prod => prod.id === id);
-        return product; // Devuelve el producto o undefined si no lo encuentra
+        try {
+            // En Mongo los IDs son un texto alfanumérico largo, no un número simple
+            const product = await productModel.findById(id).lean();
+            return product;
+        } catch (error) {
+            console.log("Error al buscar producto por ID:", error);
+            return null;
+        }
     }
 
     // 4. Actualizar producto
     updateProduct = async (id, productUpdates) => {
-        const products = await this.getProducts();
-        const index = products.findIndex(prod => prod.id === id);
-
-        if (index !== -1) {
-            // Mantenemos el ID original y sobrescribimos el resto
-            products[index] = { ...products[index], ...productUpdates, id }; 
-            await fs.promises.writeFile(this.path, JSON.stringify(products, null, '\t'));
-            return products[index];
+        try {
+            // Buscamos por ID y actualizamos en un solo paso
+            const updatedProduct = await productModel.findByIdAndUpdate(id, productUpdates, { new: true });
+            return updatedProduct;
+        } catch (error) {
+            console.log("Error al actualizar producto:", error);
+            return null;
         }
-        return null; // Si no lo encuentra
     }
 
     // 5. Borrar producto
     deleteProduct = async (id) => {
-        const products = await this.getProducts();
-        const index = products.findIndex(prod => prod.id === id);
-
-        if (index !== -1) {
-            const newProducts = products.filter(prod => prod.id !== id);
-            await fs.promises.writeFile(this.path, JSON.stringify(newProducts, null, '\t'));
-            return true; // Borrado exitoso
+        try {
+            const deletedProduct = await productModel.findByIdAndDelete(id);
+            return deletedProduct ? true : false;
+        } catch (error) {
+            console.log("Error al borrar producto:", error);
+            return false;
         }
-        return false; // No encontrado
     }
 }

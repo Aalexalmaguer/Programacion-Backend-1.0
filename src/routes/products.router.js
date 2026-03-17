@@ -1,41 +1,63 @@
 // Importamos el router de Express
-import {Router} from 'express';
-
-// Importamos el ProductManager para poder usarlo en nuestras rutas de productos
+import { Router } from 'express';
+// Importamos nuestro manager
 import ProductManager from '../managers/ProductManager.js';
 
-// Creamos una instancia del router, esto nos permitirá definir rutas específicas para productos
 const router = Router();
+// Instanciamos el manager (ahora con los paréntesis vacíos)
+const manager = new ProductManager();
 
-// Creamos una instancia del ProductManager, esto nos permitirá manejar los productos almacenados en el archivo JSON
-const manager = new ProductManager('./src/data/products.json');
-
-// Creamos una ruta GET para obtener todos los productos, esta ruta responderá a las solicitudes GET en la raíz del router (es decir, /api/products)
+// GET /api/products - Obtener todos los productos con paginación y filtros
 router.get('/', async (req, res) => {
     try {
-        //Le pedimos al manager que nos devuelva los productos, esto se hace de manera asíncrona porque el manager lee los productos desde un archivo
-        const products = await manager.getProducts();
+        // 1. Capturamos los query params que pidió el profe (con valores por defecto)
+        const { limit = 10, page = 1, sort, query } = req.query;
 
-        //Enviamos la lista como respuesta, esto convertirá el array de productos en formato JSON y lo enviará al cliente
-        res.json(products);
+        // 2. Le pedimos al manager que haga la búsqueda en Mongo
+        const result = await manager.getProducts(limit, page, sort, query);
+
+        // 3. Preparamos la ruta base para armar los links de "Siguiente" y "Anterior"
+        const baseUrl = req.protocol + '://' + req.get('host') + req.baseUrl;
+        
+        const buildLink = (pageNumber) => {
+            let link = `${baseUrl}?limit=${limit}&page=${pageNumber}`;
+            if (sort) link += `&sort=${sort}`;
+            if (query) link += `&query=${query}`;
+            return link;
+        };
+
+        // 4. Devolvemos el objeto EXACTAMENTE con el formato que pide la consigna
+        res.json({
+            status: 'success',
+            payload: result.docs, // result.docs es donde Mongoose guarda el arreglo de productos
+            totalPages: result.totalPages,
+            prevPage: result.prevPage,
+            nextPage: result.nextPage,
+            page: result.page,
+            hasPrevPage: result.hasPrevPage,
+            hasNextPage: result.hasNextPage,
+            prevLink: result.hasPrevPage ? buildLink(result.prevPage) : null,
+            nextLink: result.hasNextPage ? buildLink(result.nextPage) : null
+        });
+
     } catch (error) {
-        res.status(500).json({ error: "Error al obtener los productos" });
+        res.status(500).json({ status: 'error', message: "Error al obtener los productos" });
     }
 });
 
 // GET /api/products/:pid - Obtener un producto por su ID
 router.get('/:pid', async (req, res) => {
     try {
-        const productId = parseInt(req.params.pid); // Obtenemos el ID del producto desde los parámetros de la URL y lo convertimos a entero
-        const product = await manager.getProductById(productId); // Le pedimos al manager que nos devuelva el producto con el ID especificado
+        // ¡OJO AQUÍ! Quitamos el parseInt porque en Mongo los IDs son de tipo String (ObjectId)
+        const productId = req.params.pid; 
+        const product = await manager.getProductById(productId); 
 
         if (!product) {
-            return res.status(404).send({ error: "Producto no encontrado" }); // Si el producto no existe, respondemos con un error 404
+            return res.status(404).send({ error: "Producto no encontrado" }); 
         }
-
-        res.json(product); // Si el producto existe, lo enviamos como respuesta en formato JSON
+        res.json(product); 
     } catch (error) {
-        res.status(500).json({ error: "Error al obtener el producto" }); // Si ocurre un error al obtener el producto, respondemos con un error 500
+        res.status(500).json({ error: "Error al obtener el producto" }); 
     }
 });
 
@@ -43,53 +65,49 @@ router.get('/:pid', async (req, res) => {
 // POST /api/products - Agregar un nuevo producto
 router.post('/', async (req, res) => {
     try {
-        const product = req.body; // Obtenemos los datos del nuevo producto desde el cuerpo de la solicitud
+        const product = req.body; 
 
-        // Validamos que se hayan proporcionado todos los campos necesarios para crear un producto
         if (!product.title || !product.price) {
-            return res.status(400).send({ error: "Faltan campos obligatorios: title y price" }); // Si faltan campos obligatorios, respondemos con un error 400
+            return res.status(400).send({ error: "Faltan campos obligatorios: title y price" }); 
         }
 
-        const newProduct = await manager.addProduct(product); // Le pedimos al manager que agregue el nuevo producto, esto se hace de manera asíncrona porque el manager escribe el producto en un archivo
-        res.status(201).json(newProduct); // Respondemos con el nuevo producto creado en formato JSON y un status 201 (creado)
+        const newProduct = await manager.addProduct(product); 
+        res.status(201).json(newProduct); 
     } catch (error) {
-        res.status(500).json({ error: "Error al agregar el producto" }); // Si ocurre un error al agregar el producto, respondemos con un error 500
+        res.status(500).json({ error: "Error al agregar el producto" }); 
     }
 });
 
 // PUT /api/products/:pid - Actualizar un producto existente
 router.put('/:pid', async (req, res) => {
     try {
-        const id = parseInt(req.params.pid); // Obtenemos el ID del producto desde los parámetros de la URL y lo convertimos a entero
-        const updateData = req.body; // Obtenemos los datos de actualización desde el cuerpo de la solicitud
+        const id = req.params.pid; // Quitamos parseInt
+        const updateData = req.body; 
 
-        const updatedProduct = await manager.updateProduct(id, updateData); // Le pedimos al manager que actualice el producto con el ID especificado, esto se hace de manera asíncrona porque el manager escribe el producto actualizado en un archivo
+        const updatedProduct = await manager.updateProduct(id, updateData); 
         if (!updatedProduct) {
-            return res.status(404).send({ error: "Producto no encontrado para actualizar" }); // Si el producto no existe, respondemos con un error 404
+            return res.status(404).send({ error: "Producto no encontrado para actualizar" }); 
         }
-
-        res.send(updatedProduct); // Si el producto se actualizó correctamente, lo enviamos como respuesta
+        res.send(updatedProduct); 
     } catch (error) {
-        res.status(500).json({ error: "Error al actualizar el producto" }); // Si ocurre un error al actualizar el producto, respondemos con un error 500
+        res.status(500).json({ error: "Error al actualizar el producto" }); 
     }
 });
 
 // DELETE /api/products/:pid - Eliminar un producto por su ID
 router.delete('/:pid', async (req, res) => {
     try {
-        const pid = parseInt(req.params.pid); // Obtenemos el ID del producto desde los parámetros de la URL y lo convertimos a entero
+        const id = req.params.pid; // Quitamos parseInt
 
-        const success = await manager.deleteProduct(pid); // Le pedimos al manager que elimine el producto con el ID especificado, esto se hace de manera asíncrona porque el manager escribe los cambios en un archivo
+        const success = await manager.deleteProduct(id); 
 
         if (!success) {
-            return res.status(404).send({ error: "Producto no encontrado para eliminar" }); // Si el producto no existe, respondemos con un error 404
+            return res.status(404).send({ error: "Producto no encontrado para eliminar" }); 
         }
-        res.json({ message: "Producto eliminado correctamente" }); // Si el producto se eliminó correctamente, respondemos con un mensaje de éxito
+        res.json({ message: "Producto eliminado correctamente" }); 
     } catch (error) {
-        res.status(500).json({ error: "Error al eliminar el producto" }); // Si ocurre un error al eliminar el producto, respondemos con un error 500
+        res.status(500).json({ error: "Error al eliminar el producto" }); 
     }
 });
 
-
-// Exportamos el router para usarlo en app.js, esto nos permite mantener nuestro código organizado y modularizado
 export default router;

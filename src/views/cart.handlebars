@@ -1,0 +1,22 @@
+<h1>Tu Carrito de Compras</h1>
+
+<h3>ID del Carrito: {{cart._id}}</h3>
+
+{{#if cart.products.length}}
+    <ul style="list-style: none; padding: 0;">
+        {{#each cart.products}}
+        <li style="border: 1px solid #ccc; padding: 10px; margin-bottom: 10px;">
+            {{!-- Gracias al POPULATE mágico, podemos acceder a this.product.title --}}
+            <h4>{{this.product.title}}</h4>
+            <p>Precio Unitario: ${{this.product.price}}</p>
+            <p>Cantidad seleccionada: <strong>{{this.quantity}}</strong></p>
+            <p>Subtotal: ${{!-- Handlebars no hace matemáticas, pero aquí iría el total --}}</p>
+        </li>
+        {{/each}}
+    </ul>
+{{else}}
+    <p>Tu carrito está completamente vacío. ¡Agrega algunos productos!</p>
+{{/if}}
+
+<br>
+<a href="/products">Seguir comprando</a>

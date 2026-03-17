@@ -1,76 +1,115 @@
-import fs from 'fs';
+// Importamos el modelo de Mongoose
+import { cartModel } from '../models/cart.model.js';
 
 export default class CartManager {
-    constructor(path) {
-        this.path = path;
-    }
 
-    // 1. Obtener todos los carritos (uso interno para leer el archivo)
+    // 1. Obtener todos los carritos
     getCarts = async () => {
         try {
-            if (fs.existsSync(this.path)) {
-                const data = await fs.promises.readFile(this.path, 'utf-8');
-                return JSON.parse(data);
-            }
-            return [];
+            return await cartModel.find().lean();
         } catch (error) {
+            console.log(error);
             return [];
         }
     }
 
-    // 2. Crear un carrito nuevo (POST /)
+    // 2. Crear un carrito nuevo
     createCart = async () => {
-        const carts = await this.getCarts();
-
-        // Generar ID autoincrementable
-        let id;
-        if (carts.length === 0) {
-            id = 1;
-        } else {
-            id = carts[carts.length - 1].id + 1;
+        try {
+            // Se crea vacío por defecto según nuestro modelo
+            return await cartModel.create({ products: [] });
+        } catch (error) {
+            console.log(error);
+            return null;
         }
-
-        // El carrito nace vacío, solo con su ID y un array de products vacío
-        const newCart = {
-            id,
-            products: [] 
-        };
-
-        carts.push(newCart);
-        await fs.promises.writeFile(this.path, JSON.stringify(carts, null, '\t'));
-        return newCart;
     }
 
-    // 3. Obtener un carrito por ID (GET /:cid)
+    // 3. Obtener un carrito por ID (¡CON POPULATE!)
     getCartById = async (id) => {
-        const carts = await this.getCarts();
-        return carts.find(cart => cart.id === id);
+        try {
+            // .populate() hace la magia de traer los datos completos del producto, no solo el ID
+            return await cartModel.findById(id).populate('products.product').lean();
+        } catch (error) {
+            console.log(error);
+            return null;
+        }
     }
 
-    // 4. Agregar un producto al carrito (POST /:cid/product/:pid)
+    // 4. Agregar producto al carrito
     addProductToCart = async (cartId, productId) => {
-        const carts = await this.getCarts();
-        const cartIndex = carts.findIndex(cart => cart.id === cartId);
+        try {
+            const cart = await cartModel.findById(cartId);
+            if (!cart) return null;
 
-        if (cartIndex !== -1) {
-            // Ya encontramos el carrito, ahora buscamos si el producto ya existe DENTRO del carrito
-            const productIndex = carts[cartIndex].products.findIndex(p => p.product === productId);
+            // Buscamos si el producto ya existe adentro del array
+            const productIndex = cart.products.findIndex(p => p.product.toString() === productId);
 
             if (productIndex !== -1) {
-                // Si ya existe, le sumamos 1 a la cantidad
-                carts[cartIndex].products[productIndex].quantity++;
+                cart.products[productIndex].quantity++; // Si existe, sumamos 1
             } else {
-                // Si no existe, lo agregamos con cantidad 1
-                carts[cartIndex].products.push({
-                    product: productId,
-                    quantity: 1
-                });
+                cart.products.push({ product: productId, quantity: 1 }); // Si no existe, lo agregamos
             }
 
-            // Guardamos los cambios en el archivo
-            await fs.promises.writeFile(this.path, JSON.stringify(carts, null, '\t'));
-            return carts[cartIndex];
+            await cart.save(); // Guardamos los cambios en Mongo
+            return cart;
+        } catch (error) {
+            console.log(error);
+            return null;
         }
-        return null; // Si no encontró el carrito
+    }
+
+    // 5. Eliminar un producto específico del carrito
+    deleteProductFromCart = async (cartId, productId) => {
+        try {
+            const cart = await cartModel.findById(cartId);
+            if (!cart) return null;
+
+            // Filtramos para dejar todos los productos EXCEPTO el que queremos borrar
+            cart.products = cart.products.filter(p => p.product.toString() !== productId);
+            await cart.save();
+            return cart;
+        } catch (error) {
+            console.log(error);
+            return null;
+        }
+    }
+
+    // 6. Actualizar TODO el carrito con un arreglo de productos
+    updateCart = async (cartId, productsArray) => {
+        try {
+            return await cartModel.findByIdAndUpdate(cartId, { products: productsArray }, { new: true });
+        } catch (error) {
+            console.log(error);
+            return null;
+        }
+    }
+
+    // 7. Actualizar SOLO la cantidad de un producto
+    updateProductQuantity = async (cartId, productId, quantity) => {
+        try {
+            const cart = await cartModel.findById(cartId);
+            if (!cart) return null;
+
+            const productIndex = cart.products.findIndex(p => p.product.toString() === productId);
+            if (productIndex !== -1) {
+                cart.products[productIndex].quantity = quantity;
+                await cart.save();
+                return cart;
+            }
+            return null;
+        } catch (error) {
+            console.log(error);
+            return null;
+        }
+    }
+
+    // 8. Vaciar el carrito por completo
+    emptyCart = async (cartId) => {
+        try {
+            return await cartModel.findByIdAndUpdate(cartId, { products: [] }, { new: true });
+        } catch (error) {
+            console.log(error);
+            return null;
+        }
     }
 }
